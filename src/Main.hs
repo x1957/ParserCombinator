@@ -1,37 +1,35 @@
 module Main where
 
+infixr 5 +++
 
-type Parser a = String -> [(a , String)]
+--Monad
+newtype Parser a = Parser (String -> [(a , String)])
 
---data Parser a = Parser (String -> [(a , String)])
+instance Monad Parser where
+    return a = Parser (\inp -> [(a , inp)])
+    p >>= f  = Parser (\inp -> concat [parse (f v) inp' | (v,inp') <- parse p inp])
+instance MonadZero Parser where
+    zero = Parser (\inp -> [])
 
-result :: a -> Parser a
-result v = \inp -> [(v , inp)]
+instance MonadPlus Parser where
+    p ++ q = Parser (\inp -> parse p inp ++ parse q inp)
 
-zero :: Parser a
-zero = \inp -> []
+--parsing primitives
+parse :: Parser a -> (String -> [(a , String)])
+parse (Parser p) = p
 
 item :: Parser Char
-item = \inp  case inp of
-        [] -> []
-        (x : xs) -> [(x , xs)]
-        
-        
-seq :: Parser a -> Parser b -> Parser (a , b)
-a `seq` b = \inp -> [((v1,v2) , inp'') | (v1 , inp') <- a inp , (v2,inp'') <- b inp']
-
-bind :: Parser a -> (a -> Parser b) -> Parser b
-p `bind` f = \inp -> concat [f v inp' | (v ,inp') <- p inp]
-
-plus :: Parser a -> Parser a -> Parser a
-p `plus` q = \inp -> (p inp ++ q inp)
-
+item = Parser (\inp -> case inp of
+                       "" -> []
+                       (x:xs) -> [(x,xs)])
 sat :: (Char -> Bool) -> Parser Char
-sat p = item `bind` \x ->
-        if p x then result x else zero
+sat p = do 
+    c <- item
+    if p c then
+        return c
+        else zero
+--combinators
 
-char :: Char -> Parser Char
-char x = sat (\y -> x == y)
 
 main::IO()
 main = undefined
