@@ -54,5 +54,67 @@ many1 p = do
       ass <- many p
       return (a : ass)
       
-main::IO()
+sepBy :: Parser a -> Parser b -> Parser [a]
+p `sepBy` sep = (p `sepBy1` sep) +++ return []
+
+sepBy1 :: Parser a -> Parser b -> Parser [a]
+p `sepBy1` sep = do
+  a <- p
+  ass <- many (do {_<-sep ; p})
+  return (a : ass)
+
+chainl  :: Parser a -> Parser (a -> a -> a) -> a -> Parser a
+chainl p op a = (p `chainl1` op) +++ return a
+
+chainl1 :: Parser a -> Parser (a -> a -> a)  -> Parser a
+p `chainl1` op = do {a <- p ; rest a}
+                 where
+                    rest a = (do f <- op
+                                 b <- p
+                                 rest (f a b)) +++ return a
+
+--lexical combinators
+space :: Parser String
+space = many (sat isSpace)
+
+token :: Parser a -> Parser a
+token p = do {a <- p ; space ; return a}
+
+symb :: String -> Parser String
+symb cs = token (string cs)
+
+num :: Parser Char
+num = sat isNum
+
+digit :: Parser Int
+digit = do{space; n <- many1 num ; return $ read n}
+
+apply :: Parser a -> String -> [(a , String)]
+apply p = parse (do {space ; p})
+
+
+--util
+isSpace :: Char -> Bool
+isSpace a = ' ' == a
+
+isNum :: Char -> Bool
+isNum a = a >= '0' && a <= '9'
+
+--expr
+expr :: Parser Int
+expr = term `chainl1` addop
+
+term = factor `chainl1` mulop
+factor = digit +++ do {space;symb "(" ;space; n <- expr ;space; symb ")" ;space; return n}
+
+
+addop :: Parser (Int -> Int -> Int)
+addop = do {space;symb "+"; space; return (+)} +++ do {space;symb "-";space ; return (-)}
+
+mulop :: Parser (Int -> Int -> Int)
+mulop = do {space;symb "*" ; space ; return (*)} +++ do {space;symb "/" ; space ; return (div)}
+
+
+main :: IO ()
 main = undefined
+
